@@ -1,0 +1,165 @@
+# Latest and greatest in Go 1.23
+9 Oct 2024
+
+Francesco Mari
+mari@adobe.com
+
+## Roadmap
+
+- Iterators
+- Interning
+- Timers
+- Tooling
+
+## Before Iterators
+
+- The `range` keyword is quite powerful.
+- `range` works on several primitive types.
+- You can't make `range` work with your custom types.
+- Custom types must come up with their own APIs.
+
+## Before Iterators: range
+
+.code examples/examples.go /BEGIN USE RANGE/,/END USE RANGE/
+
+## Before Iterators: Custom APIs
+
+.code examples/examples.go /BEGIN USE API/,/END USE API/
+
+## Iterators: Definition
+
+Iterators come in two variants: `iter.Seq[T]` and `iter.Seq2[K, V]`.
+
+.code examples/examples.go /BEGIN ITER DEF/,/END ITER DEF/
+
+## Iterators: Examples
+
+`range` now knows how to loop over functions, where each function is an iterator
+returning one (iter.Seq) or two (iter.Seq2) elements. Iterators are generic.
+
+.code examples/examples.go /BEGIN ITER EXAMPLE/,/END ITER EXAMPLE/
+
+## Iterators: Step 1
+
+Problem: print a slice of integer backwards, but stop at a sentinel value. Don't
+print the sentinel value.
+
+.code iterator1/iterator1.go /BEGIN SOLUTION/,/END SOLUTION/
+
+Follow up: you do a lot of backwards loop in our project. Can you generalize the
+concept of looping backwards, so that you don't have to repeat the same `for`
+loop over and over? Indices are error-prone!
+
+## Iterators: Step 2
+
+You can start by extracting the body of the loop with a function that consumes
+the elements and returns a boolean: `true` for continuing the iteration, `false`
+for stopping.
+
+.code iterator2/iterator2.go /BEGIN SOLUTION/,/END SOLUTION/
+
+## Iterators: Step 3
+
+You can make the solution a bit more general if you split the backwards function
+in two steps: one step that receives the slice and one step that operates on it.
+
+.code iterator3/iterator3.go /BEGIN BACKWARD/,/END BACKWARD/
+
+Effectively, this is a constructor function for a backwards iterator.
+
+## Iterators: Step 3
+
+Looping backwards now involves creating the iterator function and calling with
+with the callback. Note: the callback didn't change!
+
+.code iterator3/iterator3.go /BEGIN SOLUTION/,/END SOLUTION/
+
+It almost looks like we have a new control flow keyword in the language!
+
+## Iterators: Done!
+
+The previous implementation already is a valid iterator! For brevity, you can
+use the type `iter.Seq2` from the standard library. Note: the iterator's
+implementation didn't change!
+
+.code iterator4/iterator4.go /BEGIN BACKWARD/,/END BACKWARD/
+
+## Iterators: Done!
+
+Now you can use a `range` loop and get rid of the extra callback. Note: you
+don't have to return `true` or `false`. You can use a simpler `break` to stop
+the loop.
+
+.code iterator4/iterator4.go /BEGIN SOLUTION/,/END SOLUTION/
+
+The solution is generic and it makes full use of the language.
+
+## Interning: the Problem
+
+- Some data structures are quite large (for example, IP addresses).
+- Sometimes programs use a lot of these data structures.
+- Some data structures have a canonical representation and are immutable!
+  - Example: two copies in memory of `127.0.0.1` are the same thing.
+- Equality is defined as a bit-for-bit comparison.
+  - Example: large, immutable strings representing identifiers.
+- Can we save some memory and CPU?
+
+## Interning: the Solution
+
+- The `unique` package!
+- Save memory by de-duplicating equivalent objects.
+- Save CPU by comparing handles instead of larger objects.
+- Don't lose type information thanks to generics.
+
+.code examples/examples.go /BEGIN INTERN/,/END INTERN/
+
+## time: Stopping or Resetting a Timer
+
+Resetting or stopping a timer before Go 1.23 required checking the result of
+`Stop` and maybe drain the timer channel.
+
+.code examples/examples.go /BEGIN TIMER STOP/,/END TIMER STOP/
+
+In Go 1.23 a simple call to `Stop` or `Reset` will do the trick.
+
+## time: GC for Timers
+
+Unless explicitly stopped, a timer before Go 1.23 could not be garbage collected
+until it went off.
+
+.code examples/examples.go /BEGIN TIMER GC/,/END TIMER GC/
+
+In Go 1.23 timers that don't have any listeners and fall out of scope can be
+immediately garbage collected.
+
+## time: GC for Tickers
+
+Unless explicitly stopped, a ticker before Go 1.23 could not be garbage
+collected at all!
+
+.code examples/examples.go /BEGIN TICKER GC/,/END TICKER GC/
+
+Like for timers, in Go 1.23 tickers that don't have any listeners and fall out
+of scope can be immediately garbage collected.
+
+## Tooling
+
+A new flag allows your CI whether your `go.mod` and `go.sum` are properly
+formatted and populated in a one-liner!
+
+```
+go mod tidy -diff
+```
+
+The flag causes the command not to modify the files but instead print the
+necessary changes as a unified diff. It exits with a non-zero code if updates
+are needed.
+
+## Links
+
+- https://go.dev/blog/go1.23
+- https://go.dev/doc/go1.23
+- https://go.dev/blog/range-functions
+- https://github.com/golang/go/discussions/56413
+- https://go.dev/blog/unique
+- https://go.dev/wiki/Go123Timer
