@@ -1,15 +1,9 @@
 # Slides
 
-## Setup
-
-```sh
-go install golang.org/x/tools/cmd/present@latest
-```
-
 ## Run
 
 ```sh
-present
+go tool present
 ```
 
 ## Syntax

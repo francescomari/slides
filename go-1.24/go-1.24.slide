@@ -1,0 +1,162 @@
+# Latest and greatest in Go 1.24
+19 Mar 2025
+
+Francesco Mari
+mari@adobe.com
+
+## Roadmap
+
+- Weak pointers
+- Finalizers
+- Goroutine bubbles
+- Testing context
+- Omit zero values in JSON
+- Tools
+
+## Weak pointers
+
+You want to store some data temporarily, but you want to do it in a GC-friendly
+way. This cache is not very friendly to your GC, as unused values are not
+reclaimable unless the cache drops them.
+
+.code cache1/cache1.go /BEGIN CACHE/,/END CACHE/
+
+## Weak pointers
+
+Weak pointers don't count towards the "in-use" references to data. If only weak
+pointers to a piece of data exists, the GC will reclaim it.
+
+.code cache2/cache2.go /BEGIN CACHE/,/END CACHE/
+
+## Finalizers
+
+Finalizers allow you to run a function before a pointer is garbage collected.
+They are much easier to use than `runtime.SetFinalizer`.
+
+.code cache3/cache3.go /BEGIN CACHE/,/END CACHE/
+
+## Goroutine bubbles
+
+Let's call a function `f` with breaks of 10s between calls, and stop after 30s
+have passed. How do we test this?
+
+.code bubbles/bubbles_test.go /BEGIN RETRY/,/END RETRY/
+
+## Goroutine bubbles
+
+Every goroutine in a bubble (`synctest.Run()`) uses a fake time implementation,
+that is automatically advanced so that **durably blocked** goroutines can make
+progress as fast as possible.
+
+.code bubbles/bubbles_test.go /BEGIN RETRY_TEST/,/END RETRY_TEST/
+
+## Goroutine bubbles
+
+Let's read from a channel, but let's also return an error if nothing comes out
+of that channel after 10s.
+
+.code bubbles/bubbles_test.go /BEGIN TIMED_READ/,/END TIMED_READ/
+
+## Goroutine bubbles
+
+Bubbles can detect goroutine blocked on reading or writing a channel. Paired
+with the fake time implementation, this allows to test `TimedRead`
+deterministically.
+
+.code bubbles/bubbles_test.go /BEGIN TEST_TIMED_READ/,/END TEST_TIMED_READ/
+
+## Goroutine bubbles
+
+The tests presented so far would run for almost one minuted outside a bubble,
+but it takes less than a second with the fake time implementation inside the
+bubble.
+
+```
+$ GOEXPERIMENT=synctest go test ./go-1.24/bubbles -count 1
+ok      github.com/francescomari/slides/go-1.24/bubbles 0.189s
+```
+
+You have to use `GOEXPERIMENT=synctest` to activate this feature.
+
+## Goroutine bubbles
+
+Words of advice!
+
+- Bubbles are not a silver bullet. Goroutines blocked on mutexes and I/O are not
+detected by a bubble.
+- Understanding concurrency is hard. Write your concurrent code in small,
+reusable, testable functions. `synctest` makes it even easier to test concurrent
+functions written this way.
+- Even if `synctest` enables it, it's probably a bit of a code smell to hardcode
+time intervals in your code. `synctest` is about achieving both speed and
+determinism, not promoting magic timers.
+
+## Testing context
+
+Every test now comes with a context that is cancelled when the test finishes.
+Don't do this:
+
+```
+ctx, cancel := context.WithCancel(context.Background())
+defer cancel()
+```
+
+Do this instead:
+
+```
+ctx := t.Context()
+```
+
+Use `t.Cleanup()` functions can wait on resources being shut down when the test
+context is canceled.
+
+## Omit zero values in JSON
+
+Let's define a value type to represent money and use it in another type as a
+non-pointer field. Without using pointers, it's impossible to prevent the JSON
+package to serialize the `Discount` field.
+
+.code omitzero/omitzero.go /BEGIN TYPES/,/END TYPES/
+
+A similar problem exists with `ModifiedTime`, which is not always set.
+
+## Omit zero values in JSON
+
+`omitzero` works as `omitempty` for all usual types, but in addition it checks
+for the type definiting an `IsZero()` method.
+
+.code omitzero/omitzero.go /BEGIN ZERO/,/END ZERO/
+
+This works particularly well with `time.Time`, which already defines an
+`IsZero()` method as expected by the `omitzero` modifier.
+
+```
+type Product struct {
+	Discount   Money `json:",omitzero"`
+	CreatedAt  time.Time
+	ModifiedAt time.Time `json:",omitzero"`
+}
+```
+
+## Tools
+
+A new `tool` directive in the `go.mod` allows you to declare dependencies on
+tools (programs installable via `go get`).
+
+```
+go get -tool golang.org/x/tools/cmd/present
+```
+
+You can invoke the tool using `go present` instead of messing with `GOBIN` and
+`PATH`.
+
+```
+go tool present
+```
+
+## Links
+
+- https://go.dev/blog/go1.24
+- https://go.dev/doc/go1.24
+- https://go.dev/blog/synctest
+- https://go.dev/blog/cleanups-and-weak
