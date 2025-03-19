@@ -114,7 +114,7 @@ context is canceled.
 
 Let's define a value type to represent money and use it in another type as a
 non-pointer field. Without using pointers, it's impossible to prevent the JSON
-package to serialize the `Discount` field.
+package from serializing the `Discount` field.
 
 .code omitzero/omitzero.go /BEGIN TYPES/,/END TYPES/
 
