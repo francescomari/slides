@@ -156,7 +156,9 @@ go tool present
 
 ## Links
 
-- https://go.dev/blog/go1.24
 - https://go.dev/doc/go1.24
+- https://go.dev/blog/go1.24
 - https://go.dev/blog/synctest
 - https://go.dev/blog/cleanups-and-weak
+- https://go.dev/blog/osroot
+- https://go.dev/blog/swisstable
