@@ -73,7 +73,7 @@ StringifyNumbers - all numbers are strings
 Deterministic - the output is deterministic for the same input
 FormatNilSliceAsNull - nil slices are null instead of empty
 FormatNilMapAsNull - nil maps are null instead of empty
-OmitZeroStructFields - zero value structs are not outputted (like `omitzero`)
+OmitZeroStructFields - zero value structs are not output (like `omitzero`)
 MatchCaseInsensitiveNames - field matches ignore the case
 DiscardUnknownMembers - struct fields tagged `unknown` are discarded
 RejectUnknownMembers - JSON fields not corresponding to struct fields are ignored
@@ -138,6 +138,14 @@ the examples from the `testing/synctest` package.
 
 The runtime now correctly configures `GOMAXPROCS` based on `cgroups` CPU quotas.
 This is important for containerized programs.
+
+In general, `GOMAXPROCS` determines how many OS threads the runtime uses to run
+the program's goroutines.
+
+- `GOMAXPROCS` << number of CPUs: underutilized hardware, decreased parallelism.
+- `GOMAXPROCS` >> number of CPUs: too many threads, too much context
+switching and cache thrashing, decreased performance.
+- `GOMAXPROCS` ~= number of CPUs: usually ideal.
 
 You can still set the value at runtime using `runtime.GOMAXPROCS()`. There is a
 new function `runtime.SetDefaultGOMAXPROCS()` to reset the value to the default.
