@@ -1,0 +1,207 @@
+# Latest and greatest in Go 1.25
+26 Aug 2025
+
+Francesco Mari
+mari@adobe.com
+
+## Roadmap
+
+- JSON v2
+- Goroutine bubbles
+- GOMAXPROCS
+- WaitGroup
+- Testing
+
+## JSON v2
+
+A new version of the JSON encoder/decoder exists if `GOEXPERIMENT=jsonv2` is
+set. The new implementation is split in two packages:
+
+- `encoding/json/v2` - Defines marshalers and unmarshalers, and options to affect
+their behavior.
+- `encoding/json/jsontext` - Responsible for encoding and decoding JSON and for
+manipulating lower-level syntactic elements.
+
+Moreover, `encoding/json` is implemented using `encoding/json/v2` if
+`GOEXPERIMENT=jsonv2` is set.
+
+## JSON v2
+
+It's now possible to read from an `io.Reader` or write to an `io.Writer` without
+an intermediate type:
+
+.code json/json.go /BEGIN JSON RW/,/END JSON RW/
+
+Backwards incompatible behavior: writing does not add a newline, and reading
+consumes the reader until `io.EOF` is reached.
+
+If you only work with `[]byte`, you can simply use `json.Marshal` and
+`json.Unmarshal`.
+
+## JSON v2
+
+For the old behavior, use `encoding/json` or combine a marshaler/unmarshaler
+with an encoder/decoder.
+
+.code json/json.go /BEGIN JSON ENC/,/END JSON ENC/
+
+## JSON v2
+
+There are several new tags that you can use on your types to change the behavior
+of marshaling/unmarshaling.
+
+```
+string - treat a numeric field as a string
+case:ignore - ignore case, dashes and underscores when unmarshaling
+case:strict - make the matching case-sensitive
+inline - promote all fields of this value to the parent struct
+unknown - similar to the above, but specifically for "inlined fallbacks"
+format - type-dependent formatting instructions (e.g. dates)
+```
+
+The documentation for `encoding/json/v2` has some good examples about the new
+tags.
+
+## JSON v2
+
+Marshalers/unmarshalers and encoders/decoders can be configured with one or more
+`Options`. The `Options` provided to the marshaler/unmarshaler have higher
+priority.
+
+```
+StringifyNumbers - all numbers are strings
+Deterministic - the output is deterministic for the same input
+FormatNilSliceAsNull - nil slices are null instead of empty
+FormatNilMapAsNull - nil maps are null instead of empty
+OmitZeroStructFields - zero value structs are not outputted (like `omitzero`)
+MatchCaseInsensitiveNames - field matches ignore the case
+DiscardUnknownMembers - struct fields tagged `unknown` are discarded
+RejectUnknownMembers - JSON fields not corresponding to struct fields are ignored
+WithMarshalers - specify custom marshalers
+WithUnmarshalers - specify custom unmarshalers
+```
+
+Look at `encoding/json/v2` for some utility functions related to `Options`.
+
+## JSON v2
+
+Custom marshalers/unmarshalers allow you to customize how a type is supposed to
+be serialized/deserialized.
+
+```
+type Marshaler interface {
+	MarshalJSON() ([]byte, error)
+}
+type MarshalerTo interface {
+	MarshalJSONTo(*jsontext.Encoder) error
+}
+```
+
+You can define marshalers/unmarshalers on the fly for existing types, without
+modifying the type definitions:
+
+```
+func MarshalFunc[T any](fn func(T) ([]byte, error)) *Marshalers
+func MarshalToFunc[T any](fn func(*jsontext.Encoder, T) error) *Marshalers
+```
+
+## JSON v2
+
+The `encoding/json` package has been re-implemented on top of
+`encoding/json/v2`. Your code will not break, but you will reap the benefits of
+the new implementation. Migrate to the new implementation at your own pace.
+
+[jsonbench](https://github.com/go-json-experiment/jsonbench) reports the full
+story about the performance of the new package.
+
+## Goroutine bubbles
+
+The `testing/synctest` package is now generally available, with some minor
+[renaming](https://github.com/golang/go/issues/73567).
+
+.code bubbles/bubbles_test.go /BEGIN BUBBLE/,/END BUBBLE/
+
+## Goroutine bubbles
+
+The timeout is triggered much faster than the hardcoded 60s.
+
+```
+$ go test ./go-1.25/bubbles
+ok      github.com/francescomari/slides/go-1.25/bubbles 0.661s
+```
+
+See caveat and suggestions from my [previous
+presentation](https://github.com/francescomari/slides/tree/main/go-1.24), and
+the examples from the `testing/synctest` package.
+
+## GOMAXPROCS
+
+The runtime now correctly configures `GOMAXPROCS` based on `cgroups` CPU quotas.
+This is important for containerized programs.
+
+You can still set the value at runtime using `runtime.GOMAXPROCS()`. There is a
+new function `runtime.SetDefaultGOMAXPROCS()` to reset the value to the default.
+
+## WaitGroup
+
+A small API addition makes `WaitGroup` a bit easier to use.
+
+```
+var wg sync.WaitGroup
+
+wg.Go(func() {
+    fmt.Println("do this")
+})
+
+wg.Go(func() {
+    fmt.Println("do that")
+})
+
+wg.Wait()
+```
+
+Under the hood, this is implemented with `wg.Add(1)` and a new Goroutine calling
+the provided function (like you would do it manually).
+
+## Testing
+
+Tests can now specify attributes.
+
+.code attr/attr_test.go /BEGIN ATTR/,/END ATTR/
+
+Attributes are included in the verbose and JSON test output, so that your CI can do things with them.
+
+```
+$ go test -v ./go-1.25/attr
+=== RUN   TestAttributes
+=== ATTR  TestAttributes subsystem foo
+=== ATTR  TestAttributes important maybe
+--- PASS: TestAttributes (0.00s)
+PASS
+ok      github.com/francescomari/slides/go-1.25/attr    0.177s
+```
+
+## Testing
+
+Tests now have an associated output stream, represented by an `io.Writer`.
+
+.code out/out_test.go /BEGIN/,/END/
+
+Anything written to the test output is shown in verbose mode (indented) and in
+JSON mode.
+
+```
+$ go test -v ./go-1.25/out   
+=== RUN   TestOutput
+    {"time":"2025-08-25T15:33:11.075773+02:00","level":"INFO","msg":"hello, there!","foo":"bar"}
+--- PASS: TestOutput (0.00s)
+PASS
+ok      github.com/francescomari/slides/go-1.25/out
+```
+
+## Links
+
+- https://go.dev/doc/go1.25
+- https://go.dev/blog/go1.25
+- https://go.dev/blog/synctest
+- https://go.dev/blog/container-aware-gomaxprocs
